@@ -1,6 +1,5 @@
 #include "catalog.h"
 #include "query.h"
-#include <cstring>
 #include <cstdlib>
 
 /*
@@ -11,22 +10,37 @@
  *  an error code otherwise
  */
 
-const Status QU_Delete(const string & relation, 
-                       const string & attrName, 
+const Status QU_Delete(const string & relation,
+                       const string & attrName,
                        const Operator op,
-                       const Datatype type, 
+                       const Datatype type,
                        const char *attrValue)
 {
     Status status;
 
-    // 1. Look up attribute information from AttrCat
-    AttrDesc attrDesc;
-    status = attrCat->getInfo(relation, attrName, attrDesc);
-    if (status != OK) {
-        return status;
+    // If no attribute is specified, delete ALL tuples
+    if (attrName.empty()) {
+        HeapFileScan scan(relation, status);
+        if (status != OK) return status;
+
+        RID rid;
+        while ((status = scan.getNext(rid)) == OK) {
+            status = scan.deleteRecord();
+            if (status != OK) {
+                scan.endScan();
+                return status;
+            }
+        }
+        scan.endScan();
+        return (status == FILEEOF) ? OK : status;
     }
 
-    // 2. Convert attrValue to correct type
+    // 1. Look up attribute info from AttrCat
+    AttrDesc attrDesc;
+    status = attrCat->getInfo(relation, attrName, attrDesc);
+    if (status != OK) return status;
+
+    // 2. Convert attrValue to proper type
     int intVal;
     float floatVal;
     void *value;
@@ -50,11 +64,9 @@ const Status QU_Delete(const string & relation,
             return BADTYPE;
     }
 
-    // 3. Open a heap file scan with a filter
+    // 3. Open a filtered heap file scan
     HeapFileScan scan(relation, status);
-    if (status != OK) {
-        return status;
-    }
+    if (status != OK) return status;
 
     status = scan.startScan(
         attrDesc.attrOffset,
@@ -63,9 +75,7 @@ const Status QU_Delete(const string & relation,
         value,
         op
     );
-    if (status != OK) {
-        return status;
-    }
+    if (status != OK) return status;
 
     // 4. Scan and delete matching records
     RID rid;
@@ -80,10 +90,5 @@ const Status QU_Delete(const string & relation,
     // 5. Finish scan
     scan.endScan();
 
-    // getNext returns FILEEOF when done — that is success
-    if (status == FILEEOF) {
-        return OK;
-    }
-
-    return status;
+    return (status == FILEEOF) ? OK : status;
 }
