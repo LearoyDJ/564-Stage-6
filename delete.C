@@ -16,7 +16,7 @@ const Status QU_Delete(const string & relation,
                        const Datatype type,
                        const char *attrValue)
 {
-    cout << "Doing QU_Delete" << endl;
+    cout << "Doing QU_Delete " << endl;
     Status status;
 
     // Case 1: DELETE FROM relation;  (no WHERE clause)
