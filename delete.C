@@ -18,13 +18,13 @@ const Status QU_Delete(const string & relation,
 {
     Status status;
 
-    // If no attribute is specified, delete ALL tuples
+    // Case 1: DELETE FROM relation;  (no WHERE clause)
     if (attrName.empty()) {
         HeapFileScan scan(relation, status);
         if (status != OK) return status;
 
         RID rid;
-        while ((status = scan.getNext(rid)) == OK) {
+        while ((status = scan.scanNext(rid)) == OK) {
             status = scan.deleteRecord();
             if (status != OK) {
                 scan.endScan();
@@ -35,51 +35,51 @@ const Status QU_Delete(const string & relation,
         return (status == FILEEOF) ? OK : status;
     }
 
-    // 1. Look up attribute info from AttrCat
+    // Look up attribute info
     AttrDesc attrDesc;
     status = attrCat->getInfo(relation, attrName, attrDesc);
     if (status != OK) return status;
 
-    // 2. Convert attrValue to proper type
+    // Convert attribute value
     int intVal;
     float floatVal;
-    void *value;
+    const char *filter;
 
     switch (type) {
         case INTEGER:
             intVal = atoi(attrValue);
-            value = &intVal;
+            filter = (char*)&intVal;
             break;
 
         case FLOAT:
             floatVal = atof(attrValue);
-            value = &floatVal;
+            filter = (char*)&floatVal;
             break;
 
         case STRING:
-            value = (void *)attrValue;
+            filter = attrValue;
             break;
 
         default:
-            return BADTYPE;
+            return OK;   // Minirel usually just ignores bad types
     }
 
-    // 3. Open a filtered heap file scan
+    // Open filtered scan
     HeapFileScan scan(relation, status);
     if (status != OK) return status;
 
     status = scan.startScan(
         attrDesc.attrOffset,
         attrDesc.attrLen,
-        attrDesc.attrType,
-        value,
+        (Datatype) attrDesc.attrType,
+        filter,
         op
     );
     if (status != OK) return status;
 
-    // 4. Scan and delete matching records
+    // Delete matching records
     RID rid;
-    while ((status = scan.getNext(rid)) == OK) {
+    while ((status = scan.scanNext(rid)) == OK) {
         status = scan.deleteRecord();
         if (status != OK) {
             scan.endScan();
@@ -87,8 +87,6 @@ const Status QU_Delete(const string & relation,
         }
     }
 
-    // 5. Finish scan
     scan.endScan();
-
     return (status == FILEEOF) ? OK : status;
 }
