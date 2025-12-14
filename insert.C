@@ -14,9 +14,9 @@ const Status QU_Insert(const string & relation,
 	const int attrCnt, 
 	const attrInfo attrList[])
 {
-// part 6
-// return OK;
-    Status status;
+Status status;
+
+    cout << "Doing QU_Insert " << endl;
 
     // Get relation schema
     int relAttrCnt;
@@ -24,8 +24,10 @@ const Status QU_Insert(const string & relation,
     status = attrCat->getRelInfo(relation, relAttrCnt, attrs);
     if (status != OK) return status;
 
-    if (attrCnt != relAttrCnt)
+    if (attrCnt != relAttrCnt) {
+        delete[] attrs;
         return INVALIDRECLEN;
+    }
 
     // Compute record length
     int reclen = 0;
@@ -43,18 +45,14 @@ const Status QU_Insert(const string & relation,
             if (strcmp(attrList[i].attrName, attrs[j].attrName) == 0) {
 
                 if (attrs[j].attrType == INTEGER) {
-                    int v = atoi((char *)attrList[i].attrValue);
-                    memcpy(recBuf + attrs[j].attrOffset,
-                           &v,
-                           sizeof(int));
+                    int v = atoi((char*)attrList[i].attrValue);
+                    memcpy(recBuf + attrs[j].attrOffset, &v, attrs[j].attrLen);
                 }
                 else if (attrs[j].attrType == FLOAT) {
-                    float v = atof((char *)attrList[i].attrValue);
-                    memcpy(recBuf + attrs[j].attrOffset,
-                           &v,
-                           sizeof(float));
+                    float v = atof((char*)attrList[i].attrValue);
+                    memcpy(recBuf + attrs[j].attrOffset, &v, attrs[j].attrLen);
                 }
-                else { // STRING
+                else {
                     memcpy(recBuf + attrs[j].attrOffset,
                            attrList[i].attrValue,
                            attrs[j].attrLen);
@@ -65,18 +63,22 @@ const Status QU_Insert(const string & relation,
             }
         }
 
-        if (!found)
+        if (!found) {
+            delete[] recBuf;
+            delete[] attrs;
             return ATTRNOTFOUND;
+        }
     }
 
     // Insert record
     InsertFileScan scan(relation, status);
-    if (status != OK) return status;
+    if (status != OK) {
+        delete[] recBuf;
+        delete[] attrs;
+        return status;
+    }
 
-    Record rec;
-    rec.data = recBuf;
-    rec.length = reclen;
-
+    Record rec{recBuf, reclen};
     RID rid;
     status = scan.insertRecord(rec, rid);
 
